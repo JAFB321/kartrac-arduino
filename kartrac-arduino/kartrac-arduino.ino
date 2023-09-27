@@ -1,256 +1,129 @@
+#include <Wire.h>
+#include "SSD1306Ascii.h"
+#include "SSD1306AsciiAvrI2c.h"
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
-#include <Wire.h>
 #include <ArduinoJson.h>
-#include <arduino-timer.h>
 
-// ============== Timer ==============
-Timer<2> timer;
-#define GYRO_INTERVAL 500
-#define ACC_INTERVAL 200
+// ============== OLED ==============
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+#define OLED_RESET 4     // necesario por la libreria pero no usado
+
+#define I2C_ADDRESS_OLED 0x3C
+SSD1306AsciiAvrI2c oled;
+
+// Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);	// crea objeto
 
 // ============== Accelerometer ==============
 Adafruit_MPU6050 mpu;
-#define INTERVAL_SEND_VALUES 1000
 #define IMPACT_THRESHOLD 15.0
-unsigned long time = 0;
-
-// Event
-sensors_event_t a, g, temp;
-
-#define GYRO_COUNT 5
-#define ACC_COUNT 5
-// gyro data
-float gyro_data_x[GYRO_COUNT];
-float gyro_data_y[GYRO_COUNT];
-float gyro_data_z[GYRO_COUNT];
-int gyro_index = 0;
-// acc data
-float acc_data_x[ACC_COUNT];
-float acc_data_y[ACC_COUNT];
-float acc_data_z[ACC_COUNT];
-int acc_index = 0;
-
-// ============== Impact sensor ==============
-#define PIN_IMPACT 3
 
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
+  init_oled();
   init_giroscope();
-  pinMode(PIN_IMPACT, INPUT);
 
-  timer.every(GYRO_INTERVAL, save_gryo);
-  timer.every(ACC_INTERVAL, save_acc);
-  Serial.print("Size of timer: ");
-  Serial.println(sizeof(timer));
+  delay(500);
+  // Wire.begin();
+
+  // size of mpu
+  Serial.print(F("Size of mpu: "));
+  Serial.println(sizeof(mpu));
+
+  // size of oled
+  Serial.print(F("Size of oled: "));
+  Serial.println(sizeof(oled));
 }
 
 void loop()
 {
   loop_accelerometer();
-  timer.tick();
-  // int impactoRaw = digitalRead(PIN_IMPACT);
-  // if (impactoRaw == HIGH) {
-  //   Serial.print("Impacto detectado!");
-  //   sendValues(true);
-  // }
+  // loop_oled();
+}
 
-  // if (millis() >= time + INTERVAL_SEND_VALUES) {
-  //   time += INTERVAL_SEND_VALUES;
-  //   sendValues(false);
-  // }
-
-  // loop_accelerometer();
-  // loop_gyro();
+void loop_oled()
+{
+  // oled.clearDisplay();			// limpia pantalla
+  // oled.setTextColor(WHITE);		// establece color al unico disponible (pantalla monocromo)
+  oled.setCursor(0, 0); // ubica cursor en inicio de coordenadas 0,0
+  // oled.setTextSize(1);			// establece tamano de texto en 1
+  oled.print("Timer: ");       // escribe en pantalla el texto
+  oled.print(millis() / 1000); // escribe valor de millis() dividido por 1000
+  oled.print(" seg.");         // escribe en pantalla el texto
+  oled.setCursor(10, 20);      // ubica cursor en coordenas 10,30
+  // oled.setTextSize(2);			// establece tamano de texto en 2
+  oled.print("KarTrac"); // escribe texto
+  // oled.setTextSize(1.5);			// establece tamano de texto en 2
+  oled.setCursor(10, 40);   // ubica cursor en coordenas 10,30
+  oled.print("Status: OK"); // escribe texto
+  // oled.display();			// muestra en pantalla todo lo establecido anteriormente
 }
 
 void loop_accelerometer()
 {
+  sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
   if (a.acceleration.y > IMPACT_THRESHOLD)
   {
-    Serial.print("Impacto detectado! (Y:");
+    Serial.print(F("Impacto detectado! (Y:"));
     Serial.print(a.acceleration.y);
-    Serial.println(")");
+    Serial.println(F(")"));
 
-    void * s;
-    save_acc(s);
-    save_gryo(s);
-    sendValues(true);
+    // Print
+    print_impact(a, g, temp);
+
+    // Temperature
+    sendFloat("temp", temp.temperature);
+    // Acceleration
+    sendFloat("ax", a.acceleration.x);
+    sendFloat("ay", a.acceleration.y);
+    sendFloat("az", a.acceleration.z);
+    // Gyro
+    sendFloat("gx", g.gyro.x);
+    sendFloat("gy", g.gyro.y);
+    sendFloat("gz", g.gyro.z);
+    // Impact
+    Impact();
+
     delay(1000);
   }
 
   delay(30);
 }
 
-bool save_acc(void *argument)
-{
-  acc_data_x[acc_index] = a.acceleration.x;
-  acc_data_y[acc_index] = a.acceleration.y;
-  acc_data_z[acc_index] = a.acceleration.z;
-  acc_index++;
-  if (acc_index == ACC_COUNT)
-    acc_index = 0;
-  return true;
-}
-
-bool save_gryo(void *argument)
-{
-  gyro_data_x[gyro_index] = g.gyro.x;
-  gyro_data_y[gyro_index] = g.gyro.y;
-  gyro_data_z[gyro_index] = g.gyro.z;
-  gyro_index++;
-  if (gyro_index == GYRO_COUNT)
-    gyro_index = 0;
-  return true;
-}
-
-void sendValues(bool impact)
-{
-  temperature();
-  AccelerationX();
-  AccelerationY();
-  AccelerationZ();
-  GyroX();
-  GyroY();
-  GyroZ();
-  if (impact) Impact();
-
-  delay(1000);
-}
-
-// ============ Temperature ============
-void temperature()
+void sendFloat(char *key, float val)
 {
   StaticJsonDocument<70> doc;
-  JsonArray array;
-  Serial.print("Sending temperature value...");
-  Serial.println(temp.temperature);
-  doc["k"] = "tmp";
-  doc["v"] = round2(temp.temperature);
-  doSerializeJson(doc, doc.createNestedArray(), false);
+  Serial.println(F("Sending values..."));
+  doc["key"] = key;
+  doc["val"] = round2(val);
+  doSerializeJson(doc, true);
 }
 
-// ============ Acceleration X ============
-void AccelerationX()
-{
-  StaticJsonDocument<70> doc;
-  JsonArray array;
-  Serial.println("Sending acceleration X values...");
-  doc["k"] = "ax";
-  array = doc.createNestedArray("v");
-  for (size_t i = 0; i < ACC_COUNT; i++)
-  {
-    array.add(round2(acc_data_x[i]));
-  }
-  doSerializeJson(doc, array, true);
-}
-
-// ============ Acceleration Y ============
-void AccelerationY()
-{
-  StaticJsonDocument<70> doc;
-  JsonArray array;
-  Serial.println("Sending acceleration Y values...");
-  doc["k"] = "ay";
-  array = doc.createNestedArray("v");
-  for (size_t i = 0; i < ACC_COUNT; i++)
-  {
-    array.add(round2(acc_data_y[i]));
-  }
-  doSerializeJson(doc, array, true);
-}
-
-// ============ Acceleration Z ============
-void AccelerationZ()
-{
-  StaticJsonDocument<70> doc;
-  JsonArray array;
-  Serial.println("Sending acceleration Z values...");
-  doc["k"] = "az";
-  array = doc.createNestedArray("v");
-  for (size_t i = 0; i < ACC_COUNT; i++)
-  {
-    array.add(round2(acc_data_z[i]));
-  }
-  doSerializeJson(doc, array, true);
-}
-
-// ============ Gyro X ============
-void GyroX()
-{
-  StaticJsonDocument<70> doc;
-  JsonArray array;
-  Serial.println("Sending gyro X values...");
-  doc["k"] = "gx";
-  array = doc.createNestedArray("v");
-  for (size_t i = 0; i < GYRO_COUNT; i++)
-  {
-    array.add(round2(gyro_data_x[i]));
-  }
-  doSerializeJson(doc, array, true);
-}
-
-// ============ Gyro Y ============
-void GyroY()
-{
-  StaticJsonDocument<70> doc;
-  JsonArray array;
-  Serial.println("Sending gyro Y values...");
-  doc["k"] = "gy";
-  array = doc.createNestedArray("v");
-  for (size_t i = 0; i < GYRO_COUNT; i++)
-  {
-    array.add(round2(gyro_data_y[i]));
-  }
-  doSerializeJson(doc, array, true);
-}
-
-// ============ Gyro Z ============
-void GyroZ()
-{
-  StaticJsonDocument<70> doc;
-  JsonArray array;
-  Serial.println("Sending gyro Z values...");
-  doc["k"] = "gz";
-  array = doc.createNestedArray("v");
-  for (size_t i = 0; i < GYRO_COUNT; i++)
-  {
-    array.add(round2(gyro_data_z[i]));
-  }
-  doSerializeJson(doc, array, true);
-}
-
-// ============ Impact ============
 void Impact()
 {
   StaticJsonDocument<70> doc;
-  JsonArray array;
-
-  Serial.println("Sending impact value...");
-  doc["k"] = "impact";
-  doc["v"] = true;
+  Serial.println(F("Sending impact value..."));
+  doc["key"] = "impact";
+  doc["val"] = true;
   doc["timestamp"] = millis();
-  doc["gyro_last_index"] = gyro_index - 1;
-  doc["acc_last_index"] = acc_index - 1;
-  doSerializeJson(doc, doc.createNestedArray(), false);
+  doSerializeJson(doc, false);
 }
 
-void doSerializeJson(DynamicJsonDocument doc, JsonArray toClearDoc, bool log)
+void doSerializeJson(DynamicJsonDocument doc, bool log)
 {
   if (log == true)
   {
-    Serial.print("Usage after acceleration values: ");
+    Serial.print(F("Usage after acceleration values: "));
     Serial.println(doc.memoryUsage());
-    Serial.print("ARRAY Usage after acceleration values: ");
-    Serial.println(toClearDoc.memoryUsage());
   }
 
   if (doc.overflowed())
   {
-    Serial.println("JSON Overflowed!");
+    Serial.println(F("JSON Overflowed!"));
   }
 
   serializeJson(doc, Serial);
@@ -262,84 +135,119 @@ void doSerializeJson(DynamicJsonDocument doc, JsonArray toClearDoc, bool log)
 
 void init_giroscope()
 {
-  Serial.println("Adafruit MPU6050 test!");
+  Serial.println(F("Adafruit MPU6050 test!"));
 
   // Try to initialize!
   if (!mpu.begin())
   {
-    Serial.println("Failed to find MPU6050 chip");
+    Serial.println(F("Failed to find MPU6050 chip"));
     while (1)
     {
       delay(10);
     }
   }
-  Serial.println("MPU6050 Found!");
+  Serial.println(F("MPU6050 Found!"));
 
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  Serial.print("Accelerometer range set to: ");
+  Serial.print(F("Accelerometer range set to: "));
   switch (mpu.getAccelerometerRange())
   {
   case MPU6050_RANGE_2_G:
-    Serial.println("+-2G");
+    Serial.println(F("+-2G"));
     break;
   case MPU6050_RANGE_4_G:
-    Serial.println("+-4G");
+    Serial.println(F("+-4G"));
     break;
   case MPU6050_RANGE_8_G:
-    Serial.println("+-8G");
+    Serial.println(F("+-8G"));
     break;
   case MPU6050_RANGE_16_G:
-    Serial.println("+-16G");
+    Serial.println(F("+-16G"));
     break;
   }
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-  Serial.print("Gyro range set to: ");
+  Serial.print(F("Gyro range set to: "));
   switch (mpu.getGyroRange())
   {
   case MPU6050_RANGE_250_DEG:
-    Serial.println("+- 250 deg/s");
+    Serial.println(F("+- 250 deg/s"));
     break;
   case MPU6050_RANGE_500_DEG:
-    Serial.println("+- 500 deg/s");
+    Serial.println(F("+- 500 deg/s"));
     break;
   case MPU6050_RANGE_1000_DEG:
-    Serial.println("+- 1000 deg/s");
+    Serial.println(F("+- 1000 deg/s"));
     break;
   case MPU6050_RANGE_2000_DEG:
-    Serial.println("+- 2000 deg/s");
+    Serial.println(F("+- 2000 deg/s"));
     break;
   }
 
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-  Serial.print("Filter bandwidth set to: ");
+  Serial.print(F("Filter bandwidth set to: "));
   switch (mpu.getFilterBandwidth())
   {
   case MPU6050_BAND_260_HZ:
-    Serial.println("260 Hz");
+    Serial.println(F("260 Hz"));
     break;
   case MPU6050_BAND_184_HZ:
-    Serial.println("184 Hz");
+    Serial.println(F("184 Hz"));
     break;
   case MPU6050_BAND_94_HZ:
-    Serial.println("94 Hz");
+    Serial.println(F("94 Hz"));
     break;
   case MPU6050_BAND_44_HZ:
-    Serial.println("44 Hz");
+    Serial.println(F("44 Hz"));
     break;
   case MPU6050_BAND_21_HZ:
-    Serial.println("21 Hz");
+    Serial.println(F("21 Hz"));
     break;
   case MPU6050_BAND_10_HZ:
-    Serial.println("10 Hz");
+    Serial.println(F("10 Hz"));
     break;
   case MPU6050_BAND_5_HZ:
-    Serial.println("5 Hz");
+    Serial.println(F("5 Hz"));
     break;
   }
 
-  Serial.println("");
+  Serial.println(F(""));
   delay(100);
 }
+
+void init_oled(){
+  oled.begin(&Adafruit128x64, I2C_ADDRESS_OLED);
+  oled.setFont(Adafruit5x7);
+  print_welcome();
+}
+
+void print_welcome(){
+  oled.clear();
+  oled.set2X();
+  oled.println("Kartrac");
+  oled.set1X();
+  oled.println("");
+  oled.println("Estatus: OK");
+  oled.println();
+}
+
+void print_impact(sensors_event_t a, sensors_event_t g, sensors_event_t temp){
+  oled.clear();
+  oled.set2X();
+  oled.println("Kartrac");
+  oled.set1X();
+  oled.println();
+  oled.println("Estatus: ACCIDENTE!");
+  oled.println();
+  oled.print("Temperatura: ");
+  oled.print(temp.temperature);
+  oled.println(" C");
+  oled.println();
+  oled.print("Impacto a: ");
+  oled.print(round2(a.acceleration.y));
+  oled.println(" m/s2");
+  // if()
+}
+
 
 float round2(float value)
 {
