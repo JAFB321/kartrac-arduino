@@ -4,6 +4,7 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <ArduinoJson.h>
+#include <SoftwareSerial.h>
 
 // ============== OLED ==============
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
@@ -19,9 +20,13 @@ SSD1306AsciiAvrI2c oled;
 Adafruit_MPU6050 mpu;
 #define IMPACT_THRESHOLD 15.0
 
+// ================= Serial ==================
+SoftwareSerial Serial_esp(2, 3); // RX, TX pins
+
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(115200); // Debugging only
+  Serial_esp.begin(9600); // ESP32-CAM only
   init_oled();
   init_giroscope();
 
@@ -37,10 +42,23 @@ void setup()
   Serial.println(sizeof(oled));
 }
 
+
+
 void loop()
 {
   loop_accelerometer();
+  loop_esp32_serial();
   // loop_oled();
+}
+
+void loop_esp32_serial(){
+  if (Serial_esp.available()) {
+    String data = Serial_esp.readStringUntil('\n');
+    // Process the received data here
+    // Echo back the data to the debug serial port
+    Serial.print("ESP32-CAM: ");
+    Serial.println(data);
+  }
 }
 
 void loop_oled()
@@ -126,9 +144,8 @@ void doSerializeJson(DynamicJsonDocument doc, bool log)
     Serial.println(F("JSON Overflowed!"));
   }
 
-  serializeJson(doc, Serial);
-  Serial.println();
-  Serial.println();
+  serializeJson(doc, Serial_esp);
+  Serial_esp.println();
   doc.garbageCollect();
   doc.clear();
 }
@@ -249,6 +266,7 @@ void print_impact(sensors_event_t a, sensors_event_t g, sensors_event_t temp){
 }
 
 
+// ============== Utils ==============
 float round2(float value)
 {
   return (int)(value * 100 + 0.5) / 100.0;
