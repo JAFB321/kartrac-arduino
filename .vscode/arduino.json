@@ -2,5 +2,5 @@
     "sketch": "kartrac-arduino/kartrac-arduino.ino",
     "board": "arduino:avr:uno",
     "output": "kartrac-arduino/build/",
-    "port": "/dev/tty.usbmodem11201"
+    "port": "/dev/tty.usbserial-A50285BI"
 }
