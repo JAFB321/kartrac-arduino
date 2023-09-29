@@ -1,0 +1,31 @@
+Impacto detectado! (Y:15.95)
+Sending values...
+Usage after acceleration values: 21
+{"key":"temp","val":32.24}
+
+Sending values...
+Usage after acceleration values: 19
+{"key":"ax","val":-3.13}
+
+Sending values...
+Usage after acceleration values: 19
+{"key":"ay","val":15.95}
+
+Sending values...
+Usage after acceleration values: 19
+{"key":"az","val":10.08}
+
+Sending values...
+Usage after acceleration values: 19
+{"key":"gx","val":0.07}
+
+Sending values...
+Usage after acceleration values: 19
+{"key":"gy","val":-0.23}
+
+Sending values...
+Usage after acceleration values: 19
+{"key":"gz","val":-0.72}
+
+Sending impact value...
+{"key":"impact","val":true,"timestamp":6432}

@@ -1,0 +1,23 @@
+ESP32-CAM: Recibido: {"key":"temp","val":29.13}
+ESP32-CAM: FLAFLASH OFF
+ESP32-CAM: Recibido: {"key":"ax","val":5.22}
+ESP32-CAM: FLASH ON
+ESP32-CAM: FLASH OFF
+ESP32-CAM: Recibido: {"key":"ay","val":35.51}
+ESP32-CAM: FLASH ON
+ESP32-CAM: FLASH OFF
+ESP32-CAM: Recibido: {"key":"az","val":10.18}
+ESP32-CAM: FLASH ON
+ESP32-CAM: FLASH OFF
+ESP32-CAM: Recibido: {"key":"gx","val":0.02}
+ESP32-CAM: FLASH ON
+ESP32-CAM: FLASH OFF
+ESP32-CAM: Recibido: {"key":"gy","val":0.1}
+ESP32-CAM: FLASH ON
+ESP32-CAM: FLASH OFF
+ESP32-CAM: Recibido: {"key":"gz","val":0.01}
+ESP32-CAM: FLASH ON
+ESP32-CAM: FLASH OFF
+ESP32-CAM: Recibido: {"key":"impact","val":true,"timestamp":418869}
+
+D064jz60
